@@ -20,7 +20,7 @@ fn main() {
     for i in 0..size {
         let mut max = vec![
             (i, 0),           // left to right
-            (i, size - 1),    // right to right
+            (i, size - 1),    // right to left
             (0, i),           // top to bottom
             (size - 1, i),    // bottom to top
         ];

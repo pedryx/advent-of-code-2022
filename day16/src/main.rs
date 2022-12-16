@@ -1,193 +1,129 @@
-use std::collections::{HashMap, HashSet};
-
+use std::collections::HashMap;
 use itertools::Itertools;
+use scanf::sscanf;
+
+type Num = i16;
+type Cache = Vec<Num>;
+type Graph = Vec<Node>;
 
 struct Node {
-    flow_rate: u16,
-    edges: Vec<Edge>,
+    edges: Vec<usize>,
+    flow_rate: Num,
 }
 
-struct Edge {
-    _start_node: usize,
-    end_node: usize,
-}
-
-#[derive(Debug, Clone)]
 struct State {
-    opened: HashSet<usize>,
-    flow_rate: u16,
-    minute: u8,
-    preassure: u16,
-}
-
-impl State {
-    fn process_entity(&mut self, entity: &Entity, graph: &Graph) {
-        if entity.open {
-            self.flow_rate += graph[entity.pos].flow_rate;
-            self.opened.insert(entity.pos);
-        }
-    }
-
-    fn update(&mut self) -> bool {
-        self.preassure += self.flow_rate;
-        self.minute -= 1;
-    
-        self.minute == 0
-    }
-}
-
-#[derive(Clone, Copy)]
-struct Entity {
     pos: usize,
-    came_from: usize,
-    open: bool,
+    opened: u64,
+    time: usize,
 }
 
 const ROOT_NODE: &str = "AA";
-const MAX_MINUTE: u8 = 30;
-
-type Graph = Vec<Node>;
+const MAX_MINUTE_PART1: usize = 30;
+const MAX_MINUTE_PART2: usize = 26;
 
 fn parse(input: &str) -> (Graph, usize) {
-    let mut graph: Graph = Graph::new();
-    let mut nodes: HashMap<&str, usize> = HashMap::new();
-
     let input = input.lines()
-        .map(|line| line.split_once("to").unwrap())
-        .map(|(first, second)| (
-            first.split(' ')
-                .enumerate()
-                .filter(|(i, _)| *i == 1 || *i == 4)
-                .map(|(_, s)| s)
-                .next_tuple().unwrap(),
-            second.split(',')
-                .map(|s| s.split(' ').last().unwrap())
-        )).map(|((node, rate), edges)| (
-            (
-                node,
-                rate.split('=')
-                    .last().unwrap()
-                    .chars()
-                    .take_while(|c| *c != ';').join("")
-                    .parse().unwrap()
-            ),
-            edges
-        ));
+        .map(|line| line.split_once(';').unwrap())
+        .map(|(left, right)| {
+            let mut name: String = String::new();
+            let mut flow_rate: Num = 0;
+            sscanf!(left, "Valve {} has flow rate={}", name, flow_rate).unwrap();
+            let edges = right.split(' ').skip(5).map(|s| s.replace(",", ""));
 
-    for ((node, rate), _) in input.clone() {
-        nodes.insert(node, graph.len());
-        graph.push(Node { flow_rate: rate, edges: Vec::new() });
+            (name, flow_rate, edges)
+        }).sorted_by(|(_, a, _), (_, b, _)| b.partial_cmp(a).unwrap())
+        .enumerate();
+
+    let mut nodes = HashMap::new();
+    let mut graph = Graph::new();
+    let mut root_node = 0;
+    for (i, (name, flow_rate, _)) in input.clone() {
+        if name == ROOT_NODE {
+            root_node = i;
+        }
+
+        nodes.insert(name, graph.len());
+        graph.push(Node { flow_rate, edges: Vec::new() });
     }
-    for ((node, _), edges) in input {
+    for (i, (_, _, edges)) in input {
         for edge in edges {
-            graph[nodes[node]].edges.push(Edge {
-                _start_node: nodes[node],
-                end_node: nodes[edge],
-            });
+            graph[i].edges.push(nodes[&edge]);
         }
     }
 
-    //println!("{:?}", nodes);
-    (graph, nodes[ROOT_NODE])
+    (graph, root_node)
 }
 
-fn traverse(graph: &Graph, human: Entity, elephant: Entity, mut state: State) -> u16 {
-    state.process_entity(&human, graph);
-    state.process_entity(&elephant, graph);
-    if state.update() {
-        return state.preassure;
-    }
-
-    let mut preassures: Vec<u16> = Vec::new();
-    let human_path_count = graph[human.pos].edges.len();
-    let elephant_path_count = graph[elephant.pos].edges.len();
-    // 1 if open path included else 0
-    let human_open = if graph[human.pos].flow_rate != 0 && !human.open && !state.opened.contains(&human.pos) { 1 } else { 0 };
-    let elephant_open = if graph[elephant.pos].flow_rate != 0 && !elephant.open && !state.opened.contains(&elephant.pos) { 1 } else { 0 };
-
-    //println!();
-    //println!("human path count: {}", human_path_count);
-    //println!("elephant path count: {}", elephant_path_count);
-    //println!("human open: {}", human_open);
-    //println!("elephant open: {}", elephant_open);
-
-    for human_path in 0..human_path_count + human_open {
-        for elephant_path in 0..elephant_path_count + elephant_open {
-            // improvment: human and elephant cant open same node
-
-            // human and elephant cannot go back because that is inefective
-            if human_path != human_path_count {
-                let human_next_pos = graph[human.pos].edges[human_path].end_node;
-                if human_next_pos == human.came_from && graph[human.pos].edges.len() != 1 {
-                    //println!("human cant go back - {} {}", human_path, elephant_path);
-                    continue;
-                }
-            }
-            if elephant_path != elephant_path_count {
-                //println!("count: {}", elephant_path_count);
-                //println!("edges: {}", graph[elephant.pos].edges.len());
-                //println!("path: {}", elephant_path);
-                //println!("open: {}", elephant_open);
-                let elephant_next_pos = graph[elephant.pos].edges[elephant_path].end_node;
-                if elephant_next_pos == elephant.came_from && graph[elephant.pos].edges.len() != 1 {
-                    //println!("elephant cant go back - {} {}", human_path, elephant_path);
-                    continue;
-                }
-            }
-
-            // prepare new states for human and elephant
-            let mut new_human = human;
-            if human_open == 1 && human_path == human_path_count {
-                new_human.open = true;
-                //println!("human open - {}", human_path);
-            }
-            else {
-                new_human.pos = graph[human.pos].edges[human_path].end_node;
-                new_human.came_from = human.pos;
-                new_human.open = false;
-                //println!("human go - {}", human_path);
-            }
-            let mut new_elephant = elephant;
-            if elephant_open == 1 && elephant_path == elephant_path_count {
-                new_elephant.open = true;
-                //println!("elephant open - {}", elephant_path);
-            }
-            else {
-                //println!("edges: {}", graph[elephant.pos].edges.len());
-                //println!("path: {}", elephant_path);
-                //println!("open: {}", elephant_open);
-                new_elephant.pos = graph[elephant.pos].edges[elephant_path].end_node;
-                new_elephant.came_from = elephant.pos;
-                new_elephant.open = false;
-                //println!("elephant go - {}", elephant_path);
-            }
-
-            // human/elephant move
-            let preassure = traverse(graph, new_human, new_elephant, state.clone());
-            preassures.push(preassure);
+fn solve_inner(
+    graph: &Graph,
+    cache: &mut Cache,
+    total_time: usize,
+    root_node: usize,
+    total_helper_count: usize,
+    helper_count: usize,
+    state: State
+) -> Num {
+    // if no time left switching to next helper or exiting
+    if state.time == 0 {
+        if helper_count - 1 > 0 {
+            let state = State { pos: root_node, time: total_time, ..state };
+            return solve_inner(graph, cache, total_time, root_node, total_helper_count, helper_count - 1, state);
+        }
+        else {
+            return 0;
         }
     }
 
-    let preassure = *preassures.iter().max().unwrap();
-    //println!("road end - {}", preassure);
-    preassure
+    // if result is cached get it from cache
+    let cache_index = state.opened as usize * total_time  * graph.len() * total_helper_count  +
+                      (state.time - 1)  * graph.len() * total_helper_count  +
+                      state.pos * total_helper_count  + helper_count;
+    if cache[cache_index] >= 0 {
+        return cache[cache_index];
+    }
+
+    let mut result = 0;
+
+    // try to open if can be opened
+    if (state.opened & (1 << state.pos)) == 0 && graph[state.pos].flow_rate > 0 {
+        let opened = state.opened | (1 << state.pos);
+        let accumulated = (state.time - 1) as Num * graph[state.pos].flow_rate;
+        let state = State { opened, time: state.time - 1, ..state };
+        result = std::cmp::max(
+            result,
+            accumulated + solve_inner(graph, cache, total_time, root_node, total_helper_count, helper_count, state)
+        );
+    }
+    // go through each edge
+    for edge in &graph[state.pos].edges {
+        let state = State { time: state.time - 1, pos: *edge, ..state };
+        result = std::cmp::max(
+            result,
+            solve_inner(graph, cache, total_time, root_node, total_helper_count, helper_count, state)
+        );
+    }
+
+    // store result in cache
+    cache[cache_index] = result;
+
+    result
 }
 
-fn solve(graph: &Graph, root_node: usize, time: u8) -> u16 {
-    let human = Entity { pos: root_node, came_from: root_node, open: false };
-    let elephant = Entity { pos: root_node, came_from: root_node, open: false };
+fn solve(graph: &Graph, root_node: usize, total_time: usize, helper_count: usize) -> Num {
+    let openable_count = graph.iter().filter(|n| n.flow_rate > 0).count();
+    let cache_size = (1 << openable_count) * graph.len() * total_time as usize * helper_count as usize;
+    let mut cache: Vec<Num> = vec![-1;cache_size];
+    let state = State { pos: root_node, time: total_time, opened: 0 };
 
-    traverse(graph, human, elephant, State {
-        opened: HashSet::new(),
-        flow_rate: 0,
-        preassure: 0,
-        minute: time,
-    })
+    solve_inner(&graph, &mut cache, total_time, root_node, helper_count, helper_count, state)
 }
 
 fn main() {
-    let (graph, root_node) = parse(include_str!("../in_test.txt"));
+    let (graph, root_node) = parse(include_str!("../in.txt"));
 
-    let result = solve(&graph, root_node, MAX_MINUTE);
-    println!("part1: {}", result);
+    let result1 = solve(&graph, root_node, MAX_MINUTE_PART1, 1);
+    println!("part1: {}", result1);
+
+    let result2 = solve(&graph, root_node, MAX_MINUTE_PART2, 2);
+    println!("part2: {}", result2);
 }

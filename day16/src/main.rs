@@ -99,47 +99,67 @@ fn traverse(graph: &Graph, human: Entity, elephant: Entity, mut state: State) ->
     }
 
     let mut preassures: Vec<u16> = Vec::new();
-    let human_path_count = graph[human.pos].edges.len() + 1;
-    let elephant_path_count = graph[elephant.pos].edges.len() + 1;
-    let human_start_path = if graph[human.pos].flow_rate != 0 && !human.open && !state.opened.contains(&human.pos) { 1 } else { 0 };
-    let elephant_start_path = if graph[elephant.pos].flow_rate != 0 && !elephant.open && !state.opened.contains(&elephant.pos) { 1 } else { 0 };
+    let human_path_count = graph[human.pos].edges.len();
+    let elephant_path_count = graph[elephant.pos].edges.len();
+    // 1 if open path included else 0
+    let human_open = if graph[human.pos].flow_rate != 0 && !human.open && !state.opened.contains(&human.pos) { 1 } else { 0 };
+    let elephant_open = if graph[elephant.pos].flow_rate != 0 && !elephant.open && !state.opened.contains(&elephant.pos) { 1 } else { 0 };
 
-    for human_path in human_start_path..human_path_count {
-        for elephant_path in elephant_start_path..elephant_path_count {
-            if human_path == elephant_path {
-                continue;
-            }
+    //println!();
+    //println!("human path count: {}", human_path_count);
+    //println!("elephant path count: {}", elephant_path_count);
+    //println!("human open: {}", human_open);
+    //println!("elephant open: {}", elephant_open);
 
-            // get next position for human and elephant
-            let human_next_pos = graph[human.pos].edges[human_path - human_start_path].end_node;
-            let elephant_next_pos = graph[elephant.pos].edges[elephant_path - elephant_start_path].end_node;
+    for human_path in 0..human_path_count + human_open {
+        for elephant_path in 0..elephant_path_count + elephant_open {
+            // improvment: human and elephant cant open same node
 
             // human and elephant cannot go back because that is inefective
-            if human_next_pos == human.came_from && graph[human.pos].edges.len() != 1 {
-                continue;
+            if human_path != human_path_count {
+                let human_next_pos = graph[human.pos].edges[human_path].end_node;
+                if human_next_pos == human.came_from && graph[human.pos].edges.len() != 1 {
+                    //println!("human cant go back - {} {}", human_path, elephant_path);
+                    continue;
+                }
             }
-            if elephant_next_pos == elephant.came_from && graph[elephant.pos].edges.len() != 1 {
-                continue;
+            if elephant_path != elephant_path_count {
+                //println!("count: {}", elephant_path_count);
+                //println!("edges: {}", graph[elephant.pos].edges.len());
+                //println!("path: {}", elephant_path);
+                //println!("open: {}", elephant_open);
+                let elephant_next_pos = graph[elephant.pos].edges[elephant_path].end_node;
+                if elephant_next_pos == elephant.came_from && graph[elephant.pos].edges.len() != 1 {
+                    //println!("elephant cant go back - {} {}", human_path, elephant_path);
+                    continue;
+                }
             }
 
             // prepare new states for human and elephant
             let mut new_human = human;
-            if human_start_path == 0 && human_path == 0 {
+            if human_open == 1 && human_path == human_path_count {
                 new_human.open = true;
+                //println!("human open - {}", human_path);
             }
             else {
-                new_human.pos = human_next_pos;
+                new_human.pos = graph[human.pos].edges[human_path].end_node;
                 new_human.came_from = human.pos;
                 new_human.open = false;
+                //println!("human go - {}", human_path);
             }
             let mut new_elephant = elephant;
-            if elephant_start_path == 0 && elephant_path == 0 {
+            if elephant_open == 1 && elephant_path == elephant_path_count {
                 new_elephant.open = true;
+                //println!("elephant open - {}", elephant_path);
             }
             else {
-                new_elephant.pos = elephant_next_pos;
+                //println!("edges: {}", graph[elephant.pos].edges.len());
+                //println!("path: {}", elephant_path);
+                //println!("open: {}", elephant_open);
+                new_elephant.pos = graph[elephant.pos].edges[elephant_path].end_node;
                 new_elephant.came_from = elephant.pos;
                 new_elephant.open = false;
+                //println!("elephant go - {}", elephant_path);
             }
 
             // human/elephant move

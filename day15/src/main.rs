@@ -7,8 +7,6 @@ type Num = i32;
 #[derive(Eq, Hash, PartialEq, Debug)]
 struct Point { x: Num, y: Num }
 
-struct Line { start: Point, len: usize, dir: u8 }
-
 const DESIRED_Y: i32 = 10;
 const MIN_LIMIT: i32 = 0;
 const MAX_LIMIT: i32 = 4000000;
@@ -119,11 +117,9 @@ fn main() {
             beacons.push(Point { x: bx, y: by });
         });
 
-    //let result1 = solve_part1(&sensors, &beacons);
-    //println!("part1: {}", result1);
-    //assert_eq!(result1, 6_425_133);
+    let result1 = solve_part1(&sensors, &beacons);
+    println!("part1: {}", result1);
 
     let result2 = solve_part2(&sensors, &beacons);
     println!("part2: {}", result2);
-    assert_eq!(result2, 10_996_191_429_555);
 }
